@@ -4,6 +4,8 @@
 
 #define BAUD_RATE 115200
 #define BUTTON_PIN 3
+#define LED_PIN LED_BUILTIN
+
 #define PRESSED_TRESHHOLD 14
 #define RELEASE_TRESHHOLD 2
 
@@ -11,8 +13,15 @@
 #define RELAY_OFF HIGH
 
 #define SHORT_PRESS_MIN 100
-#define LONG_PRESS_MIN 2000
+#define LONG_PRESS_MIN 1000
 #define LONG_PRESS_MAX 10000
+
+#define POWEROFF_TIMEOUT 20000
+
+#define LED_ON_TIMEOUT 10000
+#define LED_BLINK_TIMEOUT 5000
+#define LED_BLINK_SLOW_DELTA 500
+#define LED_BLINK_FAST_DELTA 200
 
 typedef struct{
   uint32_t SysTick;
@@ -24,21 +33,18 @@ typedef struct{
 
 volatile ButtonState btn = {0};
 
-//volatile uint32_t SysTick = 0;
 volatile uint16_t ButtonIntegrator = 0x0;
-//volatile bool ButtonPressed = false;
-//volatile bool ButtonStateChanged = false;
-//volatile uint32_t PressTime = 0;
-//volatile uint32_t ReleaseTime = 0;
+
+uint32_t SystemOnTime = 0;
 
 enum class SystemState : uint8_t { OFF, ON, FAULT };
 SystemState CurrentState = SystemState::OFF;
 
+bool led_blink(uint32_t delta, uint32_t current_time){
+  return (current_time % delta) < (delta / 2);
+}
+
 void setup() {
-  // put your setup code here, to run once:
-
-  pinMode(LED_BUILTIN, OUTPUT);
-
   noInterrupts();
 
   TCCR1A = 0; //регистр управления для таймера 1
@@ -57,6 +63,7 @@ void setup() {
 
   Serial.begin(BAUD_RATE);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
 
   wdt_enable(WDTO_2S);
 
@@ -64,11 +71,15 @@ void setup() {
 }
 
 void loop() {
+  // watchdog reset
+  
   if(CurrentState != SystemState::FAULT){
     wdt_reset();
   }else{
     return;
   }
+
+  // get context
   
   ButtonState ctx;
   
@@ -81,20 +92,69 @@ void loop() {
   btn.ButtonStateChanged = false;
   interrupts(); 
 
+  // Обработка залипания кнопки
+
   if(ctx.ButtonPressed && ctx.SysTick - ctx.PressTime > LONG_PRESS_MAX) {
     CurrentState = SystemState::FAULT;
     Serial.println("FAULT");
     return;
   }
-  
+
+  // Обработка изменения состояния кнопки
 
   if(ctx.ButtonStateChanged){
-    Serial.print(ctx.PressTime);
-    Serial.print("   ");
-    Serial.print(ctx.ReleaseTime);
-    Serial.print("  Button State Changed to ");
-    Serial.println(ctx.ButtonPressed);
-    
+    // Вся логика работает по факту отпускания кнопки
+    if(!ctx.ButtonPressed){
+      uint32_t PressDuration = ctx.ReleaseTime - ctx.PressTime;
+
+      // Обработка короткого нажатия
+      if(PressDuration > SHORT_PRESS_MIN && PressDuration <= LONG_PRESS_MIN){
+        SystemOnTime = ctx.SysTick;
+        Serial.print("Timer Update: ");
+        Serial.println(SystemOnTime);
+      // Обработка длинного нажатия
+      }else if(PressDuration > LONG_PRESS_MIN && PressDuration <= LONG_PRESS_MAX){
+        if(CurrentState == SystemState::OFF){
+          CurrentState = SystemState::ON;
+          SystemOnTime = ctx.SysTick;
+          Serial.print("Relay ON: ");
+          Serial.println(SystemOnTime);
+        }else{
+          CurrentState = SystemState::OFF;
+          Serial.print("Relay OFF: ");
+          Serial.println(ctx.SysTick);
+        }
+      // Обработка залипания кнопки
+      }else if(PressDuration > LONG_PRESS_MAX){
+        CurrentState = SystemState::FAULT;
+        Serial.println("FAULT");
+        return;
+      }
+    }
+  }
+
+  // Обработка таймера отключения
+  uint32_t PassedTime = ctx.SysTick - SystemOnTime;
+  
+  if(CurrentState == SystemState::ON && PassedTime > POWEROFF_TIMEOUT){
+    CurrentState = SystemState::OFF;
+    Serial.print("Relay OFF: ");
+    Serial.println(ctx.SysTick);
+  }
+
+  // Обработка светодиода
+  if(CurrentState != SystemState::ON){
+    digitalWrite(LED_PIN, LOW);
+  }else{
+    uint32_t RemainingTime = POWEROFF_TIMEOUT - PassedTime;
+
+    if(RemainingTime > LED_ON_TIMEOUT){
+      digitalWrite(LED_PIN, HIGH);
+    }else if(RemainingTime > LED_BLINK_TIMEOUT){
+      digitalWrite(LED_PIN, led_blink(LED_BLINK_SLOW_DELTA, ctx.SysTick));
+    }else{
+      digitalWrite(LED_PIN, led_blink(LED_BLINK_FAST_DELTA, ctx.SysTick));
+    }
   }
 
 }
