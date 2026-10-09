@@ -10,12 +10,28 @@
 #define RELAY_ON LOW
 #define RELAY_OFF HIGH
 
-volatile uint32_t SysTick = 0;
+#define SHORT_PRESS_MIN 100
+#define LONG_PRESS_MIN 2000
+#define LONG_PRESS_MAX 10000
+
+typedef struct{
+  uint32_t SysTick;
+  bool ButtonPressed;
+  bool ButtonStateChanged;
+  uint32_t PressTime;
+  uint32_t ReleaseTime;
+} ButtonState;
+
+volatile ButtonState btn = {0};
+
+//volatile uint32_t SysTick = 0;
 volatile uint16_t ButtonIntegrator = 0x0;
-volatile bool ButtonPressed = false;
-volatile bool ButtonStateChanged = false;
-volatile uint32_t PressTime = 0;
-volatile uint32_t ReleaseTime = 0;
+//volatile bool ButtonPressed = false;
+//volatile bool ButtonStateChanged = false;
+//volatile uint32_t PressTime = 0;
+//volatile uint32_t ReleaseTime = 0;
+
+enum class SystemState : uint8_t { OFF, ON, FAULT };
 
 void setup() {
   // put your setup code here, to run once:
@@ -43,24 +59,31 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  ButtonState ctx;
+  
+  noInterrupts();
+  ctx.SysTick =  btn.SysTick;
+  ctx.ButtonPressed = btn.ButtonPressed;
+  ctx.ButtonStateChanged = btn.ButtonStateChanged;
+  ctx.PressTime = btn.PressTime;
+  ctx.ReleaseTime = btn.ReleaseTime;
+  btn.ButtonStateChanged = false;
+  interrupts(); 
+  
 
-  if(ButtonStateChanged){
-    noInterrupts();
-    ButtonStateChanged = false;
-    interrupts(); 
-    Serial.print(PressTime);
+  if(ctx.ButtonStateChanged){
+    Serial.print(ctx.PressTime);
     Serial.print("   ");
-    Serial.print(ReleaseTime);
+    Serial.print(ctx.ReleaseTime);
     Serial.print("  Button State Changed to ");
-    Serial.println(ButtonPressed);
+    Serial.println(ctx.ButtonPressed);
     
   }
 
 }
 
 ISR(TIMER1_COMPA_vect) {
-  SysTick++;
+  btn.SysTick++;
 
   uint8_t PinState = !digitalRead(BUTTON_PIN);
 
@@ -76,16 +99,14 @@ ISR(TIMER1_COMPA_vect) {
     return;
   }
 
-  if(NewState != ButtonPressed){
-    ButtonPressed = NewState;
-    ButtonStateChanged = true;
+  if(NewState != btn.ButtonPressed){
+    btn.ButtonPressed = NewState;
+    btn.ButtonStateChanged = true;
     if(NewState == true){
-      PressTime = SysTick;
+      btn.PressTime = btn.SysTick;
     }else{
-      ReleaseTime = SysTick;
+      btn.ReleaseTime = btn.SysTick;
     }
-  }else{
-    ButtonStateChanged = false;
   }
   
 }
