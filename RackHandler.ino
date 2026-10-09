@@ -5,6 +5,8 @@
 #define BAUD_RATE 115200
 #define BUTTON_PIN 3
 #define LED_PIN LED_BUILTIN
+#define RELAY_PIN1 4
+#define RELAY_PIN2 5
 
 #define PRESSED_TRESHHOLD 14
 #define RELEASE_TRESHHOLD 2
@@ -44,6 +46,11 @@ bool led_blink(uint32_t delta, uint32_t current_time){
   return (current_time % delta) < (delta / 2);
 }
 
+void relay_handler(bool relay_state){
+  digitalWrite(RELAY_PIN1, relay_state);
+  digitalWrite(RELAY_PIN2, relay_state);
+}
+
 void setup() {
   noInterrupts();
 
@@ -64,6 +71,10 @@ void setup() {
   Serial.begin(BAUD_RATE);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
+  pinMode(RELAY_PIN1, OUTPUT);
+  pinMode(RELAY_PIN2, OUTPUT);
+
+  relay_handler(RELAY_OFF);
 
   wdt_enable(WDTO_2S);
 
@@ -76,6 +87,7 @@ void loop() {
   if(CurrentState != SystemState::FAULT){
     wdt_reset();
   }else{
+    relay_handler(RELAY_OFF);
     return;
   }
 
@@ -116,11 +128,13 @@ void loop() {
       }else if(PressDuration > LONG_PRESS_MIN && PressDuration <= LONG_PRESS_MAX){
         if(CurrentState == SystemState::OFF){
           CurrentState = SystemState::ON;
+          relay_handler(RELAY_ON);
           SystemOnTime = ctx.SysTick;
           Serial.print("Relay ON: ");
           Serial.println(SystemOnTime);
         }else{
           CurrentState = SystemState::OFF;
+          relay_handler(RELAY_OFF);
           Serial.print("Relay OFF: ");
           Serial.println(ctx.SysTick);
         }
@@ -138,6 +152,7 @@ void loop() {
   
   if(CurrentState == SystemState::ON && PassedTime > POWEROFF_TIMEOUT){
     CurrentState = SystemState::OFF;
+    relay_handler(RELAY_OFF);
     Serial.print("Relay OFF: ");
     Serial.println(ctx.SysTick);
   }
