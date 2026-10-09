@@ -32,6 +32,7 @@ volatile uint16_t ButtonIntegrator = 0x0;
 //volatile uint32_t ReleaseTime = 0;
 
 enum class SystemState : uint8_t { OFF, ON, FAULT };
+SystemState CurrentState = SystemState::OFF;
 
 void setup() {
   // put your setup code here, to run once:
@@ -56,9 +57,19 @@ void setup() {
 
   Serial.begin(BAUD_RATE);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  wdt_enable(WDTO_2S);
+
+  Serial.println("___System ready___");
 }
 
 void loop() {
+  if(CurrentState != SystemState::FAULT){
+    wdt_reset();
+  }else{
+    return;
+  }
+  
   ButtonState ctx;
   
   noInterrupts();
@@ -69,6 +80,12 @@ void loop() {
   ctx.ReleaseTime = btn.ReleaseTime;
   btn.ButtonStateChanged = false;
   interrupts(); 
+
+  if(ctx.ButtonPressed && ctx.SysTick - ctx.PressTime > LONG_PRESS_MAX) {
+    CurrentState = SystemState::FAULT;
+    Serial.println("FAULT");
+    return;
+  }
   
 
   if(ctx.ButtonStateChanged){
