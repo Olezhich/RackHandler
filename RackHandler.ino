@@ -4,7 +4,7 @@
 
 #define BAUD_RATE 115200
 #define BUTTON_PIN 3
-#define LED_PIN LED_BUILTIN
+#define LED_PIN 6
 #define RELAY_PIN1 4
 #define RELAY_PIN2 5
 
@@ -18,10 +18,14 @@
 #define LONG_PRESS_MIN 1000
 #define LONG_PRESS_MAX 10000
 
-#define POWEROFF_TIMEOUT 20000
+#define POWEROFF_TIMEOUT 5400000
 
-#define LED_ON_TIMEOUT 10000
-#define LED_BLINK_TIMEOUT 5000
+//#define LED_ON_TIMEOUT 3600000
+//#define LED_BLINK_TIMEOUT 4500000
+
+#define LED_SLOW_THRESHOLD 1800000   // За 30 мин до выключения
+#define LED_FAST_THRESHOLD 900000    // За 15 мин до выключения
+
 #define LED_BLINK_SLOW_DELTA 500
 #define LED_BLINK_FAST_DELTA 200
 
@@ -76,7 +80,7 @@ void setup() {
 
   relay_handler(RELAY_OFF);
 
-  wdt_enable(WDTO_2S);
+  wdt_enable(WDTO_8S);
 
   Serial.println("___System ready___");
 }
@@ -163,13 +167,21 @@ void loop() {
   }else{
     uint32_t RemainingTime = POWEROFF_TIMEOUT - PassedTime;
 
-    if(RemainingTime > LED_ON_TIMEOUT){
+    if(RemainingTime > LED_SLOW_THRESHOLD){
       digitalWrite(LED_PIN, HIGH);
-    }else if(RemainingTime > LED_BLINK_TIMEOUT){
+    }else if(RemainingTime > LED_FAST_THRESHOLD){
       digitalWrite(LED_PIN, led_blink(LED_BLINK_SLOW_DELTA, ctx.SysTick));
     }else{
       digitalWrite(LED_PIN, led_blink(LED_BLINK_FAST_DELTA, ctx.SysTick));
     }
+
+//    if(RemainingTime > LED_ON_TIMEOUT){
+//      digitalWrite(LED_PIN, HIGH);
+//    }else if(RemainingTime > LED_BLINK_TIMEOUT){
+//      digitalWrite(LED_PIN, led_blink(LED_BLINK_SLOW_DELTA, ctx.SysTick));
+//    }else{
+//      digitalWrite(LED_PIN, led_blink(LED_BLINK_FAST_DELTA, ctx.SysTick));
+//    }
   }
 
 }
