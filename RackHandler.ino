@@ -1,4 +1,4 @@
-#include <avr/wdt.h>
+//#include <avr/wdt.h>
 
 // config 
 
@@ -19,9 +19,6 @@
 #define LONG_PRESS_MAX 10000
 
 #define POWEROFF_TIMEOUT 5400000
-
-//#define LED_ON_TIMEOUT 3600000
-//#define LED_BLINK_TIMEOUT 4500000
 
 #define LED_SLOW_THRESHOLD 1800000   // За 30 мин до выключения
 #define LED_FAST_THRESHOLD 900000    // За 15 мин до выключения
@@ -72,7 +69,7 @@ void setup() {
 
   interrupts();  
 
-  Serial.begin(BAUD_RATE);
+//  Serial.begin(BAUD_RATE);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
   pinMode(RELAY_PIN1, OUTPUT);
@@ -80,20 +77,20 @@ void setup() {
 
   relay_handler(RELAY_OFF);
 
-  wdt_enable(WDTO_8S);
+//  wdt_enable(WDTO_8S);
 
-  Serial.println("___System ready___");
+//  Serial.println("___System ready___");
 }
 
 void loop() {
   // watchdog reset
   
-  if(CurrentState != SystemState::FAULT){
-    wdt_reset();
-  }else{
-    relay_handler(RELAY_OFF);
-    return;
-  }
+//  if(CurrentState != SystemState::FAULT){
+//    wdt_reset();
+//  }else{
+//    relay_handler(RELAY_OFF);
+//    return;
+//  }
 
   // get context
   
@@ -112,7 +109,7 @@ void loop() {
 
   if(ctx.ButtonPressed && ctx.SysTick - ctx.PressTime > LONG_PRESS_MAX) {
     CurrentState = SystemState::FAULT;
-    Serial.println("FAULT");
+//    Serial.println("FAULT");
     return;
   }
 
@@ -126,26 +123,26 @@ void loop() {
       // Обработка короткого нажатия
       if(PressDuration > SHORT_PRESS_MIN && PressDuration <= LONG_PRESS_MIN){
         SystemOnTime = ctx.SysTick;
-        Serial.print("Timer Update: ");
-        Serial.println(SystemOnTime);
+//        Serial.print("Timer Update: ");
+//        Serial.println(SystemOnTime);
       // Обработка длинного нажатия
       }else if(PressDuration > LONG_PRESS_MIN && PressDuration <= LONG_PRESS_MAX){
         if(CurrentState == SystemState::OFF){
           CurrentState = SystemState::ON;
           relay_handler(RELAY_ON);
           SystemOnTime = ctx.SysTick;
-          Serial.print("Relay ON: ");
-          Serial.println(SystemOnTime);
+//          Serial.print("Relay ON: ");
+//          Serial.println(SystemOnTime);
         }else{
           CurrentState = SystemState::OFF;
           relay_handler(RELAY_OFF);
-          Serial.print("Relay OFF: ");
-          Serial.println(ctx.SysTick);
+//          Serial.print("Relay OFF: ");
+//          Serial.println(ctx.SysTick);
         }
       // Обработка залипания кнопки
       }else if(PressDuration > LONG_PRESS_MAX){
         CurrentState = SystemState::FAULT;
-        Serial.println("FAULT");
+//        Serial.println("FAULT");
         return;
       }
     }
@@ -157,8 +154,8 @@ void loop() {
   if(CurrentState == SystemState::ON && PassedTime > POWEROFF_TIMEOUT){
     CurrentState = SystemState::OFF;
     relay_handler(RELAY_OFF);
-    Serial.print("Relay OFF: ");
-    Serial.println(ctx.SysTick);
+//    Serial.print("Relay OFF: ");
+//    Serial.println(ctx.SysTick);
   }
 
   // Обработка светодиода
@@ -174,14 +171,6 @@ void loop() {
     }else{
       digitalWrite(LED_PIN, led_blink(LED_BLINK_FAST_DELTA, ctx.SysTick));
     }
-
-//    if(RemainingTime > LED_ON_TIMEOUT){
-//      digitalWrite(LED_PIN, HIGH);
-//    }else if(RemainingTime > LED_BLINK_TIMEOUT){
-//      digitalWrite(LED_PIN, led_blink(LED_BLINK_SLOW_DELTA, ctx.SysTick));
-//    }else{
-//      digitalWrite(LED_PIN, led_blink(LED_BLINK_FAST_DELTA, ctx.SysTick));
-//    }
   }
 
 }
